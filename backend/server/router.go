@@ -21,22 +21,8 @@ func (s *Server) router() http.Handler {
 	router.HandleFunc("/auth/register", authHandler.Register).Methods(http.MethodPost)
 	router.HandleFunc("/auth/login", authHandler.Login).Methods(http.MethodPost)
 
-	// ========== ALCHEMISTS ==========
-	if s.AlchemistRepository != nil {
-		alchHandler := handlers.NewAlchemistHandler(
-			s.AlchemistRepository,
-			s.PeopleRepository,
-			s.HandleError,
-			s.logger.Info,
-		)
-		router.HandleFunc("/alchemists", alchHandler.GetAll).Methods(http.MethodGet)
-		router.Handle(
-			"/alchemists",
-			s.AuthMiddleware("supervisor")(http.HandlerFunc(alchHandler.Create)),
-		).Methods(http.MethodPost)
-	}
-
 	// ========== PEOPLE ==========
+	// GET públicos; mutaciones protegidas para "alchemist" o "supervisor"
 	router.HandleFunc("/people", s.HandlePeople).Methods(http.MethodGet)
 	router.Handle(
 		"/people",
@@ -50,11 +36,40 @@ func (s *Server) router() http.Handler {
 	).Methods(http.MethodPut, http.MethodDelete)
 
 	// ========== KILLS ==========
+	// Solo lectura pública; creación requiere "supervisor"
 	router.HandleFunc("/kills", s.HandleKills).Methods(http.MethodGet)
 	router.Handle(
 		"/kills/{id}",
 		s.AuthMiddleware("supervisor")(http.HandlerFunc(s.HandleKillsWithId)),
 	).Methods(http.MethodPost)
+
+	// ========== ALCHEMISTS ==========
+	// Se registran solo si el repo está disponible (tu mismo patrón)
+	if s.AlchemistRepository != nil {
+		alchHandler := handlers.NewAlchemistHandler(
+			s.AlchemistRepository,
+			s.PeopleRepository,
+			s.HandleError,
+			s.logger.Info,
+		)
+		// Lectura pública
+		router.HandleFunc("/alchemists", alchHandler.GetAll).Methods(http.MethodGet)
+		router.HandleFunc("/alchemists/{id}", alchHandler.GetByID).Methods(http.MethodGet)
+
+		// Mutaciones protegidas
+		router.Handle(
+			"/alchemists",
+			s.AuthMiddleware("supervisor")(http.HandlerFunc(alchHandler.Create)),
+		).Methods(http.MethodPost)
+		router.Handle(
+			"/alchemists/{id}",
+			s.AuthMiddleware("supervisor")(http.HandlerFunc(alchHandler.Edit)),
+		).Methods(http.MethodPut)
+		router.Handle(
+			"/alchemists/{id}",
+			s.AuthMiddleware("supervisor")(http.HandlerFunc(alchHandler.Delete)),
+		).Methods(http.MethodDelete)
+	}
 
 	return router
 }

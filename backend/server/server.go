@@ -24,7 +24,11 @@ type Server struct {
 	PeopleRepository    repository.Repository[models.Person]
 	KillRepository      repository.Repository[models.Kill]
 	UserRepository      repository.UserRepository
-	AlchemistRepository *repository.AlchemistRepository // nuevo
+	AlchemistRepository *repository.AlchemistRepository
+	MissionRepository   *repository.MissionRepository
+	MaterialRepository  *repository.MaterialRepository
+	TransRepository     *repository.TransmutationRepository
+	AuditRepository     *repository.AuditRepository
 	jwtSecret           string
 	logger              *logger.Logger
 	taskQueue           *TaskQueue
@@ -104,24 +108,30 @@ func (s *Server) initDB() {
 
 	fmt.Println("Aplicando migraciones...")
 
-	// Migraciones (agrega nuevas entidades sin eliminar las anteriores)
+	// 🔹 Migraciones (sin borrar datos previos)
 	err := s.DB.AutoMigrate(
 		&models.User{},
 		&models.Person{},
 		&models.Kill{},
-		&models.Alchemist{}, // nuevo modelo
+		&models.Alchemist{},
+		&models.Mission{},
+		&models.Material{},
+		&models.Transmutation{},
+		&models.Audit{},
 	)
 	if err != nil {
 		s.logger.Fatal(err)
 	}
 
-	// Inicializar repositorios
+	// 🔹 Inicializar repositorios
 	s.KillRepository = repository.NewKillRepository(s.DB)
 	s.PeopleRepository = repository.NewPeopleRepository(s.DB)
 	s.UserRepository = repository.NewUserRepository(s.DB)
-
-	// Solo si existe el modelo Alchemist
 	s.AlchemistRepository = repository.NewAlchemistRepository(s.DB)
+	s.MissionRepository = repository.NewMissionRepository(s.DB)
+	s.MaterialRepository = repository.NewMaterialRepository(s.DB)
+	s.TransRepository = repository.NewTransmutationRepository(s.DB)
+	s.AuditRepository = repository.NewAuditRepository(s.DB)
 }
 
 // GetJWTSecret devuelve la clave secreta usada para firmar los tokens JWT.
