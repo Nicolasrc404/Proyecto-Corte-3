@@ -22,8 +22,13 @@ type Server struct {
 	Handler          http.Handler
 	PeopleRepository repository.Repository[models.Person]
 	KillRepository   repository.Repository[models.Kill]
-	logger           *logger.Logger
-	taskQueue        *TaskQueue
+
+	// NUEVO:
+	UserRepository repository.UserRepository
+	jwtSecret      string
+
+	logger    *logger.Logger
+	taskQueue *TaskQueue
 }
 
 func NewServer() *Server {
@@ -31,16 +36,23 @@ func NewServer() *Server {
 		logger:    logger.NewLogger(),
 		taskQueue: NewTaskQueue(),
 	}
-	var config config.Config
+	var cfg config.Config
 	configFile, err := os.ReadFile("config/config.json")
 	if err != nil {
 		s.logger.Fatal(err)
 	}
-	err = json.Unmarshal(configFile, &config)
-	if err != nil {
+	if err := json.Unmarshal(configFile, &cfg); err != nil {
 		s.logger.Fatal(err)
 	}
-	s.Config = &config
+	s.Config = &cfg
+
+	// NUEVO: leemos el secret desde env (requerido)
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		s.logger.Fatal(fmt.Errorf("JWT_SECRET is not set in environment"))
+	}
+	s.jwtSecret = secret
+
 	return s
 }
 
@@ -51,7 +63,7 @@ func (s *Server) StartServer() {
 	corsObj := handlers.CORS(
 		handlers.AllowedOrigins([]string{"*"}),
 		handlers.AllowedMethods([]string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}),
-		handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type"}),
+		handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"}),
 	)
 	fmt.Println("Inicializando mux...")
 	srv := &http.Server{
@@ -86,7 +98,18 @@ func (s *Server) initDB() {
 		s.DB = db
 	}
 	fmt.Println("Aplicando migraciones...")
-	s.DB.AutoMigrate(&models.Person{}, &models.Kill{})
+	// + User en las migraciones
+	if err := s.DB.AutoMigrate(&models.User{}, &models.Person{}, &models.Kill{}); err != nil {
+		s.logger.Fatal(err)
+	}
+
+	// Inicializamos repos
 	s.KillRepository = repository.NewKillRepository(s.DB)
 	s.PeopleRepository = repository.NewPeopleRepository(s.DB)
+	s.UserRepository = repository.NewUserRepository(s.DB)
+}
+
+// GetJWTSecret permite acceder al secreto JWT desde otros paquetes.
+func (s *Server) GetJWTSecret() string {
+	return s.jwtSecret
 }
