@@ -10,7 +10,8 @@ import (
 func (s *Server) router() http.Handler {
 	router := mux.NewRouter()
 	router.Use(s.logger.RequestLogger)
-	// Auth
+
+	// ========== AUTH ==========
 	authHandler := handlers.NewAuthHandler(
 		s.GetJWTSecret(),
 		s.UserRepository,
@@ -20,16 +21,40 @@ func (s *Server) router() http.Handler {
 	router.HandleFunc("/auth/register", authHandler.Register).Methods(http.MethodPost)
 	router.HandleFunc("/auth/login", authHandler.Login).Methods(http.MethodPost)
 
-	// People (GET públicos por ahora, mutaciones protegidas)
+	// ========== ALCHEMISTS ==========
+	if s.AlchemistRepository != nil {
+		alchHandler := handlers.NewAlchemistHandler(
+			s.AlchemistRepository,
+			s.PeopleRepository,
+			s.HandleError,
+			s.logger.Info,
+		)
+		router.HandleFunc("/alchemists", alchHandler.GetAll).Methods(http.MethodGet)
+		router.Handle(
+			"/alchemists",
+			s.AuthMiddleware("supervisor")(http.HandlerFunc(alchHandler.Create)),
+		).Methods(http.MethodPost)
+	}
+
+	// ========== PEOPLE ==========
 	router.HandleFunc("/people", s.HandlePeople).Methods(http.MethodGet)
-	router.Handle("/people", s.AuthMiddleware("alchemist", "supervisor")(http.HandlerFunc(s.HandlePeople))).Methods(http.MethodPost)
+	router.Handle(
+		"/people",
+		s.AuthMiddleware("alchemist", "supervisor")(http.HandlerFunc(s.HandlePeople)),
+	).Methods(http.MethodPost)
 
 	router.HandleFunc("/people/{id}", s.HandlePeopleWithId).Methods(http.MethodGet)
-	router.Handle("/people/{id}", s.AuthMiddleware("alchemist", "supervisor")(http.HandlerFunc(s.HandlePeopleWithId))).Methods(http.MethodPut, http.MethodDelete)
+	router.Handle(
+		"/people/{id}",
+		s.AuthMiddleware("alchemist", "supervisor")(http.HandlerFunc(s.HandlePeopleWithId)),
+	).Methods(http.MethodPut, http.MethodDelete)
 
-	// Kills (solo lectura pública; creación requiere supervisor)
+	// ========== KILLS ==========
 	router.HandleFunc("/kills", s.HandleKills).Methods(http.MethodGet)
-	router.Handle("/kills/{id}", s.AuthMiddleware("supervisor")(http.HandlerFunc(s.HandleKillsWithId))).Methods(http.MethodPost)
+	router.Handle(
+		"/kills/{id}",
+		s.AuthMiddleware("supervisor")(http.HandlerFunc(s.HandleKillsWithId)),
+	).Methods(http.MethodPost)
 
 	return router
 }
