@@ -15,14 +15,14 @@ func NewAlchemistRepository(db *gorm.DB) *AlchemistRepository {
 }
 
 func (r *AlchemistRepository) FindAll() ([]*models.Alchemist, error) {
-	var alchemists []*models.Alchemist
-	err := r.db.Preload("Person").Find(&alchemists).Error
-	return alchemists, err
+	var xs []*models.Alchemist
+	err := r.db.Find(&xs).Error
+	return xs, err
 }
 
 func (r *AlchemistRepository) FindById(id int) (*models.Alchemist, error) {
 	var a models.Alchemist
-	err := r.db.Preload("Person").First(&a, id).Error
+	err := r.db.First(&a, id).Error
 	if err == gorm.ErrRecordNotFound {
 		return nil, nil
 	}
@@ -30,8 +30,10 @@ func (r *AlchemistRepository) FindById(id int) (*models.Alchemist, error) {
 }
 
 func (r *AlchemistRepository) Save(a *models.Alchemist) (*models.Alchemist, error) {
-	err := r.db.Save(a).Error
-	return a, err
+	if err := r.db.Save(a).Error; err != nil {
+		return nil, err
+	}
+	return a, nil
 }
 
 func (r *AlchemistRepository) Delete(a *models.Alchemist) error {

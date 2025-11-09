@@ -7,14 +7,14 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
+
+	"github.com/gorilla/mux"
 )
 
 type TransmutationHandler struct {
 	Repo      *repository.TransmutationRepository
-	TaskQueue *interface {
-		StartTask(int, time.Duration, func(*models.Kill) error, *models.Kill)
-	} // placeholder para tu TaskQueue
 	Log       func(status int, path string, start time.Time)
 	HandleErr func(w http.ResponseWriter, statusCode int, path string, cause error)
 }
@@ -51,13 +51,13 @@ func (h *TransmutationHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Simula procesamiento asíncrono (puedes adaptar a tu TaskQueue real)
-	go func() {
+	// Simula procesamiento asíncrono
+	go func(t *models.Transmutation) {
 		time.Sleep(5 * time.Second)
 		t.Status = "completada"
 		t.Result = "Éxito: transmutación estable."
 		h.Repo.Save(t)
-	}()
+	}(t)
 
 	resp := &api.TransmutationResponseDto{
 		ID:          int(t.ID),
@@ -65,10 +65,87 @@ func (h *TransmutationHandler) Create(w http.ResponseWriter, r *http.Request) {
 		MaterialID:  t.MaterialID,
 		Status:      t.Status,
 		Result:      t.Result,
-		CreatedAt:   t.CreatedAt.String(),
+		CreatedAt:   t.CreatedAt.Format(time.RFC3339),
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(map[string]interface{}{"data": resp})
 	h.Log(http.StatusCreated, r.URL.Path, start)
+}
+
+func (h *TransmutationHandler) GetAll(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	transmutations, err := h.Repo.FindAll()
+	if err != nil {
+		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
+		return
+	}
+	resp := []*api.TransmutationResponseDto{}
+	for _, t := range transmutations {
+		resp = append(resp, &api.TransmutationResponseDto{
+			ID:          int(t.ID),
+			AlchemistID: t.AlchemistID,
+			MaterialID:  t.MaterialID,
+			Status:      t.Status,
+			Result:      t.Result,
+			CreatedAt:   t.CreatedAt.Format(time.RFC3339),
+		})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"data": resp})
+	h.Log(http.StatusOK, r.URL.Path, start)
+}
+
+func (h *TransmutationHandler) GetByID(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	id, err := strconv.Atoi(mux.Vars(r)["id"])
+	if err != nil {
+		h.HandleErr(w, http.StatusBadRequest, r.URL.Path, err)
+		return
+	}
+	t, err := h.Repo.FindById(id)
+	if err != nil {
+		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
+		return
+	}
+	if t == nil {
+		h.HandleErr(w, http.StatusNotFound, r.URL.Path, errors.New("transmutation not found"))
+		return
+	}
+	resp := &api.TransmutationResponseDto{
+		ID:          int(t.ID),
+		AlchemistID: t.AlchemistID,
+		MaterialID:  t.MaterialID,
+		Status:      t.Status,
+		Result:      t.Result,
+		CreatedAt:   t.CreatedAt.Format(time.RFC3339),
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"data": resp})
+	h.Log(http.StatusOK, r.URL.Path, start)
+}
+
+func (h *TransmutationHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(mux.Vars(r)["id"])
+	if err != nil {
+		h.HandleErr(w, http.StatusBadRequest, r.URL.Path, err)
+		return
+	}
+
+	t, err := h.Repo.FindById(id)
+	if err != nil {
+		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
+		return
+	}
+	if t == nil {
+		h.HandleErr(w, http.StatusNotFound, r.URL.Path, errors.New("transmutation not found"))
+		return
+	}
+
+	if err := h.Repo.Delete(t); err != nil {
+		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

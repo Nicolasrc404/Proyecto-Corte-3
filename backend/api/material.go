@@ -6,12 +6,6 @@ type MaterialRequestDto struct {
 	Quantity float64 `json:"quantity"`
 }
 
-type MaterialEditRequestDto struct {
-	Name     *string  `json:"name,omitempty"`
-	Category *string  `json:"category,omitempty"`
-	Quantity *float64 `json:"quantity,omitempty"`
-}
-
 type MaterialResponseDto struct {
 	ID        int     `json:"id"`
 	Name      string  `json:"name"`

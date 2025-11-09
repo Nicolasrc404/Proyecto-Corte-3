@@ -14,26 +14,24 @@ func NewMaterialRepository(db *gorm.DB) *MaterialRepository {
 	return &MaterialRepository{db: db}
 }
 
+func (r *MaterialRepository) Save(m *models.Material) (*models.Material, error) {
+	return m, r.db.Save(m).Error
+}
+
 func (r *MaterialRepository) FindAll() ([]*models.Material, error) {
 	var materials []*models.Material
-	err := r.db.Find(&materials).Error
-	return materials, err
+	return materials, r.db.Find(&materials).Error
 }
 
 func (r *MaterialRepository) FindById(id int) (*models.Material, error) {
 	var m models.Material
-	err := r.db.First(&m, id).Error
-	if err == gorm.ErrRecordNotFound {
-		return nil, nil
-	}
-	return &m, err
-}
-
-func (r *MaterialRepository) Save(m *models.Material) (*models.Material, error) {
-	if err := r.db.Save(m).Error; err != nil {
+	if err := r.db.First(&m, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
 		return nil, err
 	}
-	return m, nil
+	return &m, nil
 }
 
 func (r *MaterialRepository) Delete(m *models.Material) error {

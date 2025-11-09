@@ -18,20 +18,18 @@ import (
 
 // Server representa el servidor principal de la aplicación.
 type Server struct {
-	DB                  *gorm.DB
-	Config              *config.Config
-	Handler             http.Handler
-	PeopleRepository    repository.Repository[models.Person]
-	KillRepository      repository.Repository[models.Kill]
-	UserRepository      repository.UserRepository
-	AlchemistRepository *repository.AlchemistRepository
-	MissionRepository   *repository.MissionRepository
-	MaterialRepository  *repository.MaterialRepository
-	TransRepository     *repository.TransmutationRepository
-	AuditRepository     *repository.AuditRepository
-	jwtSecret           string
-	logger              *logger.Logger
-	taskQueue           *TaskQueue
+	DB                      *gorm.DB
+	Config                  *config.Config
+	Handler                 http.Handler
+	UserRepository          repository.UserRepository
+	AlchemistRepository     *repository.AlchemistRepository
+	MissionRepository       *repository.MissionRepository       // ✅ CRUD Missions
+	MaterialRepository      *repository.MaterialRepository      // CRUD Materials
+	TransmutationRepository *repository.TransmutationRepository // CRUD Transmutations
+	AuditRepository         *repository.AuditRepository         // CRUD Audits
+	jwtSecret               string
+	logger                  *logger.Logger
+	taskQueue               *TaskQueue
 }
 
 // NewServer inicializa la instancia del servidor.
@@ -111,10 +109,8 @@ func (s *Server) initDB() {
 	// 🔹 Migraciones (sin borrar datos previos)
 	err := s.DB.AutoMigrate(
 		&models.User{},
-		&models.Person{},
-		&models.Kill{},
 		&models.Alchemist{},
-		&models.Mission{},
+		&models.Mission{}, // ✅ Importante para CRUD Missions
 		&models.Material{},
 		&models.Transmutation{},
 		&models.Audit{},
@@ -124,13 +120,11 @@ func (s *Server) initDB() {
 	}
 
 	// 🔹 Inicializar repositorios
-	s.KillRepository = repository.NewKillRepository(s.DB)
-	s.PeopleRepository = repository.NewPeopleRepository(s.DB)
 	s.UserRepository = repository.NewUserRepository(s.DB)
 	s.AlchemistRepository = repository.NewAlchemistRepository(s.DB)
-	s.MissionRepository = repository.NewMissionRepository(s.DB)
+	s.MissionRepository = repository.NewMissionRepository(s.DB) // ✅
 	s.MaterialRepository = repository.NewMaterialRepository(s.DB)
-	s.TransRepository = repository.NewTransmutationRepository(s.DB)
+	s.TransmutationRepository = repository.NewTransmutationRepository(s.DB)
 	s.AuditRepository = repository.NewAuditRepository(s.DB)
 }
 

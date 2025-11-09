@@ -21,34 +21,11 @@ func (s *Server) router() http.Handler {
 	router.HandleFunc("/auth/register", authHandler.Register).Methods(http.MethodPost)
 	router.HandleFunc("/auth/login", authHandler.Login).Methods(http.MethodPost)
 
-	// ========== PEOPLE ==========
-	// GET públicos; mutaciones protegidas para "alchemist" o "supervisor"
-	router.HandleFunc("/people", s.HandlePeople).Methods(http.MethodGet)
-	router.Handle(
-		"/people",
-		s.AuthMiddleware("alchemist", "supervisor")(http.HandlerFunc(s.HandlePeople)),
-	).Methods(http.MethodPost)
-
-	router.HandleFunc("/people/{id}", s.HandlePeopleWithId).Methods(http.MethodGet)
-	router.Handle(
-		"/people/{id}",
-		s.AuthMiddleware("alchemist", "supervisor")(http.HandlerFunc(s.HandlePeopleWithId)),
-	).Methods(http.MethodPut, http.MethodDelete)
-
-	// ========== KILLS ==========
-	// Solo lectura pública; creación requiere "supervisor"
-	router.HandleFunc("/kills", s.HandleKills).Methods(http.MethodGet)
-	router.Handle(
-		"/kills/{id}",
-		s.AuthMiddleware("supervisor")(http.HandlerFunc(s.HandleKillsWithId)),
-	).Methods(http.MethodPost)
-
 	// ========== ALCHEMISTS ==========
 	// Se registran solo si el repo está disponible (tu mismo patrón)
 	if s.AlchemistRepository != nil {
 		alchHandler := handlers.NewAlchemistHandler(
 			s.AlchemistRepository,
-			s.PeopleRepository,
 			s.HandleError,
 			s.logger.Info,
 		)
@@ -69,6 +46,55 @@ func (s *Server) router() http.Handler {
 			"/alchemists/{id}",
 			s.AuthMiddleware("supervisor")(http.HandlerFunc(alchHandler.Delete)),
 		).Methods(http.MethodDelete)
+
+		// ======== TRANSMUTATIONS ========
+		if s.TransmutationRepository != nil {
+			transHandler := handlers.NewTransmutationHandler(
+				s.TransmutationRepository,
+				s.HandleError,
+				s.logger.Info,
+			)
+
+			router.Handle(
+				"/transmutations",
+				s.AuthMiddleware("alchemist", "supervisor")(http.HandlerFunc(transHandler.Create)),
+			).Methods(http.MethodPost)
+
+			router.HandleFunc("/transmutations", transHandler.GetAll).Methods(http.MethodGet)
+			router.HandleFunc("/transmutations/{id}", transHandler.GetByID).Methods(http.MethodGet)
+
+			router.Handle("/transmutations/{id}",
+				s.AuthMiddleware("supervisor")(http.HandlerFunc(transHandler.Delete)),
+			).Methods(http.MethodDelete)
+
+		}
+
+		// ======== MISSIONS ========
+		if s.MissionRepository != nil {
+			mh := handlers.NewMissionHandler(s.MissionRepository, s.HandleError, s.logger.Info)
+			router.HandleFunc("/missions", mh.GetAll).Methods(http.MethodGet)
+			router.HandleFunc("/missions/{id}", mh.GetByID).Methods(http.MethodGet)
+			router.Handle("/missions",
+				s.AuthMiddleware("supervisor")(http.HandlerFunc(mh.Create)),
+			).Methods(http.MethodPost)
+			router.Handle("/missions/{id}",
+				s.AuthMiddleware("supervisor")(http.HandlerFunc(mh.Delete)),
+			).Methods(http.MethodDelete)
+		}
+
+		// ======== MATERIALS ========
+		if s.MaterialRepository != nil {
+			matHandler := handlers.NewMaterialHandler(s.MaterialRepository, s.HandleError, s.logger.Info)
+			router.HandleFunc("/materials", matHandler.GetAll).Methods(http.MethodGet)
+			router.HandleFunc("/materials/{id}", matHandler.GetByID).Methods(http.MethodGet)
+			router.Handle("/materials",
+				s.AuthMiddleware("supervisor")(http.HandlerFunc(matHandler.Create)),
+			).Methods(http.MethodPost)
+			router.Handle("/materials/{id}",
+				s.AuthMiddleware("supervisor")(http.HandlerFunc(matHandler.Delete)),
+			).Methods(http.MethodDelete)
+		}
+
 	}
 
 	return router

@@ -8,6 +8,5 @@ type Mission struct {
 	Description string
 	Difficulty  string
 	Status      string `gorm:"default:pendiente"`
-	AssignedTo  uint
-	Alchemist   *Alchemist `gorm:"foreignKey:AssignedTo;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
+	AssignedTo  uint   // Alchemist ID
 }

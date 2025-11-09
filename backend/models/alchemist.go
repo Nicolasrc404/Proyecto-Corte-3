@@ -4,8 +4,8 @@ import "gorm.io/gorm"
 
 type Alchemist struct {
 	gorm.Model
-	PersonID  uint   `gorm:"not null;uniqueIndex"`
-	Person    Person `gorm:"constraint:OnDelete:CASCADE"`
+	Name      string `gorm:"not null"`
+	Age       int    `gorm:"not null"`
 	Specialty string `gorm:"size:255"`
-	Rank      string `gorm:"size:100"` // aprendiz, estatal, maestro...
+	Rank      string `gorm:"size:100"`
 }
