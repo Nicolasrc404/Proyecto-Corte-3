@@ -112,6 +112,22 @@ func (s *Server) router() http.Handler {
 			).Methods(http.MethodDelete)
 		}
 
+		// ======== MATERIALS ========
+		if s.MaterialRepository != nil {
+			matHandler := handlers.NewMaterialHandler(s.MaterialRepository, s.HandleError, s.logger.Info)
+			router.HandleFunc("/materials", matHandler.GetAll).Methods(http.MethodGet)
+			router.HandleFunc("/materials/{id}", matHandler.GetByID).Methods(http.MethodGet)
+			router.Handle("/materials",
+				s.AuthMiddleware("supervisor")(http.HandlerFunc(matHandler.Create)),
+			).Methods(http.MethodPost)
+			router.Handle("/materials/{id}",
+				s.AuthMiddleware("supervisor")(http.HandlerFunc(matHandler.Edit)), // ✅ nuevo PUT
+			).Methods(http.MethodPut)
+			router.Handle("/materials/{id}",
+				s.AuthMiddleware("supervisor")(http.HandlerFunc(matHandler.Delete)),
+			).Methods(http.MethodDelete)
+		}
+
 		// ======== AUDITS ========
 		if s.AuditRepository != nil {
 			auditHandler := handlers.NewAuditHandler(
