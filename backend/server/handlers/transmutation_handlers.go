@@ -149,3 +149,58 @@ func (h *TransmutationHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func (h *TransmutationHandler) Edit(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	id, err := strconv.Atoi(mux.Vars(r)["id"])
+	if err != nil {
+		h.HandleErr(w, http.StatusBadRequest, r.URL.Path, err)
+		return
+	}
+
+	t, err := h.Repo.FindById(id)
+	if err != nil {
+		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
+		return
+	}
+	if t == nil {
+		h.HandleErr(w, http.StatusNotFound, r.URL.Path, errors.New("transmutation not found"))
+		return
+	}
+
+	var req api.TransmutationEditRequestDto
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.HandleErr(w, http.StatusBadRequest, r.URL.Path, err)
+		return
+	}
+
+	if req.Formula != nil {
+		t.Formula = *req.Formula
+	}
+	if req.Status != nil {
+		t.Status = *req.Status
+	}
+	if req.Result != nil {
+		t.Result = *req.Result
+	}
+
+	t, err = h.Repo.Save(t)
+	if err != nil {
+		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
+		return
+	}
+
+	resp := &api.TransmutationResponseDto{
+		ID:          int(t.ID),
+		AlchemistID: t.AlchemistID,
+		MaterialID:  t.MaterialID,
+		Status:      t.Status,
+		Result:      t.Result,
+		CreatedAt:   t.CreatedAt.Format(time.RFC3339),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(map[string]any{"data": resp})
+	h.Log(http.StatusAccepted, r.URL.Path, start)
+}

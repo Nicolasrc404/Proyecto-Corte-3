@@ -14,3 +14,9 @@ type TransmutationResponseDto struct {
 	Result      string `json:"result"`
 	CreatedAt   string `json:"created_at"`
 }
+
+type TransmutationEditRequestDto struct {
+	Formula *string `json:"formula,omitempty"`
+	Status  *string `json:"status,omitempty"`
+	Result  *string `json:"result,omitempty"`
+}
