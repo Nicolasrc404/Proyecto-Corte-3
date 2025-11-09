@@ -95,6 +95,15 @@ func (s *Server) router() http.Handler {
 			).Methods(http.MethodDelete)
 		}
 
+		// ======== AUDITS ========
+		if s.AuditRepository != nil {
+			auditHandler := handlers.NewAuditHandler(
+				s.AuditRepository,
+				s.HandleError,
+				s.logger.Info,
+			)
+			router.HandleFunc("/audits", auditHandler.GetAll).Methods(http.MethodGet)
+		}
 	}
 
 	return router

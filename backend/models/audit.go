@@ -4,8 +4,8 @@ import "gorm.io/gorm"
 
 type Audit struct {
 	gorm.Model
+	Action    string
 	Entity    string
 	EntityID  uint
-	Action    string
-	Timestamp string
+	UserEmail string
 }

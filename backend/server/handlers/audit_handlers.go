@@ -10,14 +10,16 @@ import (
 
 type AuditHandler struct {
 	Repo      *repository.AuditRepository
-	Log       func(status int, path string, start time.Time)
-	HandleErr func(w http.ResponseWriter, statusCode int, path string, cause error)
+	HandleErr func(http.ResponseWriter, int, string, error)
+	Log       func(int, string, time.Time)
 }
 
-func NewAuditHandler(repo *repository.AuditRepository,
+func NewAuditHandler(
+	repo *repository.AuditRepository,
 	handleErr func(http.ResponseWriter, int, string, error),
-	log func(int, string, time.Time)) *AuditHandler {
-	return &AuditHandler{Repo: repo, Log: log, HandleErr: handleErr}
+	log func(int, string, time.Time),
+) *AuditHandler {
+	return &AuditHandler{Repo: repo, HandleErr: handleErr, Log: log}
 }
 
 func (h *AuditHandler) GetAll(w http.ResponseWriter, r *http.Request) {
@@ -27,17 +29,20 @@ func (h *AuditHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
 		return
 	}
-	resp := []*api.AuditResponseDto{}
+
+	resp := make([]*api.AuditResponseDto, 0, len(audits))
 	for _, a := range audits {
 		resp = append(resp, &api.AuditResponseDto{
 			ID:        int(a.ID),
+			Action:    a.Action,
 			Entity:    a.Entity,
 			EntityID:  a.EntityID,
-			Action:    a.Action,
-			Timestamp: a.Timestamp,
+			UserEmail: a.UserEmail,
+			CreatedAt: a.CreatedAt.Format(time.RFC3339),
 		})
 	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(map[string]interface{}{"data": resp})
 	h.Log(http.StatusOK, r.URL.Path, start)
 }
