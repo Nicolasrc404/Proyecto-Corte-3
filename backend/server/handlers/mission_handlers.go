@@ -134,3 +134,64 @@ func (h *MissionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func (h *MissionHandler) Edit(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	id, err := strconv.Atoi(mux.Vars(r)["id"])
+	if err != nil {
+		h.HandleErr(w, http.StatusBadRequest, r.URL.Path, err)
+		return
+	}
+
+	m, err := h.Repo.FindById(id)
+	if err != nil {
+		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
+		return
+	}
+	if m == nil {
+		h.HandleErr(w, http.StatusNotFound, r.URL.Path, errors.New("mission not found"))
+		return
+	}
+
+	var req api.MissionEditRequestDto
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.HandleErr(w, http.StatusBadRequest, r.URL.Path, err)
+		return
+	}
+
+	if req.Title != nil {
+		m.Title = *req.Title
+	}
+	if req.Description != nil {
+		m.Description = *req.Description
+	}
+	if req.Difficulty != nil {
+		m.Difficulty = *req.Difficulty
+	}
+	if req.Status != nil {
+		m.Status = *req.Status
+	}
+	if req.AssignedTo != nil {
+		m.AssignedTo = *req.AssignedTo
+	}
+
+	m, err = h.Repo.Save(m)
+	if err != nil {
+		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
+		return
+	}
+
+	resp := &api.MissionResponseDto{
+		ID:          int(m.ID),
+		Title:       m.Title,
+		Description: m.Description,
+		Difficulty:  m.Difficulty,
+		Status:      m.Status,
+		AssignedTo:  m.AssignedTo,
+		CreatedAt:   m.CreatedAt.Format(time.RFC3339),
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(map[string]any{"data": resp})
+	h.Log(http.StatusAccepted, r.URL.Path, start)
+}

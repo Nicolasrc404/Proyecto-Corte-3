@@ -78,6 +78,9 @@ func (s *Server) router() http.Handler {
 				s.AuthMiddleware("supervisor")(http.HandlerFunc(mh.Create)),
 			).Methods(http.MethodPost)
 			router.Handle("/missions/{id}",
+				s.AuthMiddleware("supervisor")(http.HandlerFunc(mh.Edit)), // <- NUEVO PUT
+			).Methods(http.MethodPut)
+			router.Handle("/missions/{id}",
 				s.AuthMiddleware("supervisor")(http.HandlerFunc(mh.Delete)),
 			).Methods(http.MethodDelete)
 		}

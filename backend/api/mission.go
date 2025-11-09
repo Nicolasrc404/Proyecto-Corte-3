@@ -16,3 +16,11 @@ type MissionResponseDto struct {
 	AssignedTo  uint   `json:"assigned_to"`
 	CreatedAt   string `json:"created_at"`
 }
+
+type MissionEditRequestDto struct {
+	Title       *string `json:"title,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Difficulty  *string `json:"difficulty,omitempty"`
+	Status      *string `json:"status,omitempty"`
+	AssignedTo  *uint   `json:"assigned_to,omitempty"`
+}
