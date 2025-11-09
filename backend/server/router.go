@@ -94,6 +94,9 @@ func (s *Server) router() http.Handler {
 				s.AuthMiddleware("supervisor")(http.HandlerFunc(matHandler.Create)),
 			).Methods(http.MethodPost)
 			router.Handle("/materials/{id}",
+				s.AuthMiddleware("supervisor")(http.HandlerFunc(matHandler.Edit)), // ✅ nuevo PUT
+			).Methods(http.MethodPut)
+			router.Handle("/materials/{id}",
 				s.AuthMiddleware("supervisor")(http.HandlerFunc(matHandler.Delete)),
 			).Methods(http.MethodDelete)
 		}

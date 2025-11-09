@@ -133,3 +133,57 @@ func (h *MaterialHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func (h *MaterialHandler) Edit(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	id, err := strconv.Atoi(mux.Vars(r)["id"])
+	if err != nil {
+		h.HandleErr(w, http.StatusBadRequest, r.URL.Path, err)
+		return
+	}
+
+	m, err := h.Repo.FindById(id)
+	if err != nil {
+		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
+		return
+	}
+	if m == nil {
+		h.HandleErr(w, http.StatusNotFound, r.URL.Path, errors.New("material not found"))
+		return
+	}
+
+	var req api.MaterialEditRequestDto
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.HandleErr(w, http.StatusBadRequest, r.URL.Path, err)
+		return
+	}
+
+	if req.Name != nil {
+		m.Name = *req.Name
+	}
+	if req.Category != nil {
+		m.Category = *req.Category
+	}
+	if req.Quantity != nil {
+		m.Quantity = *req.Quantity
+	}
+
+	m, err = h.Repo.Save(m)
+	if err != nil {
+		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
+		return
+	}
+
+	resp := &api.MaterialResponseDto{
+		ID:        int(m.ID),
+		Name:      m.Name,
+		Category:  m.Category,
+		Quantity:  m.Quantity,
+		CreatedAt: m.CreatedAt.Format(time.RFC3339),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(map[string]any{"data": resp})
+	h.Log(http.StatusAccepted, r.URL.Path, start)
+}

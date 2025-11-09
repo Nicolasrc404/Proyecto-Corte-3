@@ -13,3 +13,9 @@ type MaterialResponseDto struct {
 	Quantity  float64 `json:"quantity"`
 	CreatedAt string  `json:"created_at"`
 }
+
+type MaterialEditRequestDto struct {
+	Name     *string  `json:"name,omitempty"`
+	Category *string  `json:"category,omitempty"`
+	Quantity *float64 `json:"quantity,omitempty"`
+}
