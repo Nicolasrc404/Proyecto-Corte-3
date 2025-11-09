@@ -47,28 +47,6 @@ func (s *Server) router() http.Handler {
 			s.AuthMiddleware("supervisor")(http.HandlerFunc(alchHandler.Delete)),
 		).Methods(http.MethodDelete)
 
-		// ======== TRANSMUTATIONS ========
-		if s.TransmutationRepository != nil {
-			transHandler := handlers.NewTransmutationHandler(
-				s.TransmutationRepository,
-				s.HandleError,
-				s.logger.Info,
-			)
-
-			router.Handle(
-				"/transmutations",
-				s.AuthMiddleware("alchemist", "supervisor")(http.HandlerFunc(transHandler.Create)),
-			).Methods(http.MethodPost)
-
-			router.HandleFunc("/transmutations", transHandler.GetAll).Methods(http.MethodGet)
-			router.HandleFunc("/transmutations/{id}", transHandler.GetByID).Methods(http.MethodGet)
-
-			router.Handle("/transmutations/{id}",
-				s.AuthMiddleware("supervisor")(http.HandlerFunc(transHandler.Delete)),
-			).Methods(http.MethodDelete)
-
-		}
-
 		// ======== MISSIONS ========
 		if s.MissionRepository != nil {
 			mh := handlers.NewMissionHandler(s.MissionRepository, s.HandleError, s.logger.Info)
