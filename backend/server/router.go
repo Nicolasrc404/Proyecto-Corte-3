@@ -120,7 +120,18 @@ func (s *Server) router() http.Handler {
 				s.logger.Info,
 			)
 			router.HandleFunc("/audits", auditHandler.GetAll).Methods(http.MethodGet)
+			router.HandleFunc("/audits/{id}", auditHandler.GetByID).Methods(http.MethodGet)
+			router.Handle("/audits",
+				s.AuthMiddleware("supervisor")(http.HandlerFunc(auditHandler.Create)),
+			).Methods(http.MethodPost)
+			router.Handle("/audits/{id}",
+				s.AuthMiddleware("supervisor")(http.HandlerFunc(auditHandler.Edit)),
+			).Methods(http.MethodPut)
+			router.Handle("/audits/{id}",
+				s.AuthMiddleware("supervisor")(http.HandlerFunc(auditHandler.Delete)),
+			).Methods(http.MethodDelete)
 		}
+
 	}
 
 	return router
