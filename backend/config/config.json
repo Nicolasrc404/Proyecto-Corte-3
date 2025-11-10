@@ -2,5 +2,9 @@
   "address": ":8000",
   "database": "postgres",
   "kill_duration": 5,
-  "kill_duration_with_desc": 10
+  "kill_duration_with_desc": 10,
+  "redis_address": "redis:6379",
+  "verification_interval_minutes": 1440,
+  "pending_transmutation_hours": 24,
+  "material_low_stock_threshold": 5
 }

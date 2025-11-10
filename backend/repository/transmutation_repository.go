@@ -2,12 +2,19 @@ package repository
 
 import (
 	"backend-avanzada/models"
+	"time"
 
 	"gorm.io/gorm"
 )
 
 type TransmutationRepository struct {
 	db *gorm.DB
+}
+
+func (r *TransmutationRepository) FindPendingBefore(threshold time.Time) ([]*models.Transmutation, error) {
+	var ts []*models.Transmutation
+	err := r.db.Where("status = ? AND created_at < ?", "en_proceso", threshold).Find(&ts).Error
+	return ts, err
 }
 
 func (r *TransmutationRepository) FindById(id int) (*models.Transmutation, error) {

@@ -14,17 +14,37 @@ import (
 )
 
 type TransmutationHandler struct {
-	Repo      *repository.TransmutationRepository
-	Log       func(status int, path string, start time.Time)
-	HandleErr func(w http.ResponseWriter, statusCode int, path string, cause error)
+	Repo             *repository.TransmutationRepository
+	Dispatcher       AsyncDispatcher
+	CurrentUser      func(*http.Request) string
+	ReportAsyncError func(string, error)
+	Log              func(status int, path string, start time.Time)
+	HandleErr        func(w http.ResponseWriter, statusCode int, path string, cause error)
 }
 
 func NewTransmutationHandler(
 	repo *repository.TransmutationRepository,
+	dispatcher AsyncDispatcher,
+	currentUser func(*http.Request) string,
+	reportAsyncError func(string, error),
 	handleErr func(http.ResponseWriter, int, string, error),
 	log func(int, string, time.Time),
 ) *TransmutationHandler {
-	return &TransmutationHandler{Repo: repo, HandleErr: handleErr, Log: log}
+	return &TransmutationHandler{
+		Repo:             repo,
+		Dispatcher:       dispatcher,
+		CurrentUser:      currentUser,
+		ReportAsyncError: reportAsyncError,
+		HandleErr:        handleErr,
+		Log:              log,
+	}
+}
+
+func (h *TransmutationHandler) userEmail(r *http.Request) string {
+	if h.CurrentUser != nil {
+		return h.CurrentUser(r)
+	}
+	return ""
 }
 
 func (h *TransmutationHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -51,13 +71,14 @@ func (h *TransmutationHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Simula procesamiento asíncrono
-	go func(t *models.Transmutation) {
-		time.Sleep(5 * time.Second)
-		t.Status = "completada"
-		t.Result = "Éxito: transmutación estable."
-		h.Repo.Save(t)
-	}(t)
+	if h.Dispatcher != nil {
+		if err := h.Dispatcher.EnqueueTransmutationProcessing(t.ID, h.userEmail(r)); err != nil {
+			h.ReportAsyncError(r.URL.Path, err)
+		}
+		if err := h.Dispatcher.EnqueueAudit("create", "transmutation", t.ID, h.userEmail(r), "Transmutación encolada para procesamiento"); err != nil {
+			h.ReportAsyncError(r.URL.Path, err)
+		}
+	}
 
 	resp := &api.TransmutationResponseDto{
 		ID:          int(t.ID),
@@ -146,6 +167,11 @@ func (h *TransmutationHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
 		return
 	}
+	if h.Dispatcher != nil {
+		if err := h.Dispatcher.EnqueueAudit("delete", "transmutation", t.ID, h.userEmail(r), "Transmutación eliminada"); err != nil {
+			h.ReportAsyncError(r.URL.Path, err)
+		}
+	}
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -188,6 +214,11 @@ func (h *TransmutationHandler) Edit(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
 		return
+	}
+	if h.Dispatcher != nil {
+		if err := h.Dispatcher.EnqueueAudit("update", "transmutation", t.ID, h.userEmail(r), "Transmutación actualizada manualmente"); err != nil {
+			h.ReportAsyncError(r.URL.Path, err)
+		}
 	}
 
 	resp := &api.TransmutationResponseDto{

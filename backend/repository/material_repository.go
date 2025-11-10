@@ -37,3 +37,9 @@ func (r *MaterialRepository) FindById(id int) (*models.Material, error) {
 func (r *MaterialRepository) Delete(m *models.Material) error {
 	return r.db.Delete(m).Error
 }
+
+func (r *MaterialRepository) FindScarce(threshold float64) ([]*models.Material, error) {
+	var materials []*models.Material
+	err := r.db.Where("quantity <= ?", threshold).Find(&materials).Error
+	return materials, err
+}

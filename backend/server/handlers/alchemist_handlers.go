@@ -14,15 +14,37 @@ import (
 )
 
 type AlchemistHandler struct {
-	Repo      *repository.AlchemistRepository
-	Log       func(status int, path string, start time.Time)
-	HandleErr func(w http.ResponseWriter, statusCode int, path string, cause error)
+	Repo             *repository.AlchemistRepository
+	Dispatcher       AsyncDispatcher
+	CurrentUser      func(*http.Request) string
+	ReportAsyncError func(string, error)
+	Log              func(status int, path string, start time.Time)
+	HandleErr        func(w http.ResponseWriter, statusCode int, path string, cause error)
 }
 
-func NewAlchemistHandler(repo *repository.AlchemistRepository,
+func NewAlchemistHandler(
+	repo *repository.AlchemistRepository,
+	dispatcher AsyncDispatcher,
+	currentUser func(*http.Request) string,
+	reportAsyncError func(string, error),
 	handleErr func(http.ResponseWriter, int, string, error),
-	log func(int, string, time.Time)) *AlchemistHandler {
-	return &AlchemistHandler{Repo: repo, HandleErr: handleErr, Log: log}
+	log func(int, string, time.Time),
+) *AlchemistHandler {
+	return &AlchemistHandler{
+		Repo:             repo,
+		Dispatcher:       dispatcher,
+		CurrentUser:      currentUser,
+		ReportAsyncError: reportAsyncError,
+		HandleErr:        handleErr,
+		Log:              log,
+	}
+}
+
+func (h *AlchemistHandler) userEmail(r *http.Request) string {
+	if h.CurrentUser != nil {
+		return h.CurrentUser(r)
+	}
+	return ""
 }
 
 func (h *AlchemistHandler) GetAll(w http.ResponseWriter, r *http.Request) {
@@ -99,6 +121,11 @@ func (h *AlchemistHandler) Create(w http.ResponseWriter, r *http.Request) {
 		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
 		return
 	}
+	if h.Dispatcher != nil {
+		if err := h.Dispatcher.EnqueueAudit("create", "alchemist", a.ID, h.userEmail(r), "Registro de nuevo alquimista"); err != nil {
+			h.ReportAsyncError(r.URL.Path, err)
+		}
+	}
 	resp := &api.AlchemistResponseDto{
 		ID:        int(a.ID),
 		Name:      a.Name,
@@ -127,6 +154,11 @@ func (h *AlchemistHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	if err := h.Repo.Delete(a); err != nil {
 		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
 		return
+	}
+	if h.Dispatcher != nil {
+		if err := h.Dispatcher.EnqueueAudit("delete", "alchemist", a.ID, h.userEmail(r), "Eliminación de alquimista"); err != nil {
+			h.ReportAsyncError(r.URL.Path, err)
+		}
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -171,6 +203,11 @@ func (h *AlchemistHandler) Edit(w http.ResponseWriter, r *http.Request) {
 	if _, err := h.Repo.Save(a); err != nil {
 		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
 		return
+	}
+	if h.Dispatcher != nil {
+		if err := h.Dispatcher.EnqueueAudit("update", "alchemist", a.ID, h.userEmail(r), "Actualización de alquimista"); err != nil {
+			h.ReportAsyncError(r.URL.Path, err)
+		}
 	}
 
 	resp := &api.AlchemistResponseDto{

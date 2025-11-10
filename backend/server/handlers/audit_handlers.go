@@ -44,6 +44,7 @@ func (h *AuditHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 			Entity:    a.Entity,
 			EntityID:  a.EntityID,
 			UserEmail: a.UserEmail,
+			Details:   a.Details,
 			CreatedAt: a.CreatedAt.Format(time.RFC3339),
 		})
 	}
@@ -78,6 +79,7 @@ func (h *AuditHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		Entity:    a.Entity,
 		EntityID:  a.EntityID,
 		UserEmail: a.UserEmail,
+		Details:   a.Details,
 		CreatedAt: a.CreatedAt.Format(time.RFC3339),
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -99,6 +101,7 @@ func (h *AuditHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Entity:    req.Entity,
 		EntityID:  req.EntityID,
 		UserEmail: req.UserEmail,
+		Details:   req.Details,
 	}
 	a, err := h.Repo.Save(a)
 	if err != nil {
@@ -112,6 +115,7 @@ func (h *AuditHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Entity:    a.Entity,
 		EntityID:  a.EntityID,
 		UserEmail: a.UserEmail,
+		Details:   a.Details,
 		CreatedAt: a.CreatedAt.Format(time.RFC3339),
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -157,6 +161,9 @@ func (h *AuditHandler) Edit(w http.ResponseWriter, r *http.Request) {
 	if req.UserEmail != nil {
 		a.UserEmail = *req.UserEmail
 	}
+	if req.Details != nil {
+		a.Details = *req.Details
+	}
 
 	a, err = h.Repo.Save(a)
 	if err != nil {
@@ -170,6 +177,7 @@ func (h *AuditHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		Entity:    a.Entity,
 		EntityID:  a.EntityID,
 		UserEmail: a.UserEmail,
+		Details:   a.Details,
 		CreatedAt: a.CreatedAt.Format(time.RFC3339),
 	}
 	w.Header().Set("Content-Type", "application/json")

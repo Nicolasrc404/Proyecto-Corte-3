@@ -2,6 +2,7 @@ package repository
 
 import (
 	"backend-avanzada/models"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -32,4 +33,10 @@ func (r *MissionRepository) FindById(id int) (*models.Mission, error) {
 
 func (r *MissionRepository) Delete(m *models.Mission) error {
 	return r.db.Delete(m).Error
+}
+
+func (r *MissionRepository) FindOpenBefore(threshold time.Time) ([]*models.Mission, error) {
+	var ms []*models.Mission
+	err := r.db.Where("status <> ? AND updated_at < ?", "completada", threshold).Find(&ms).Error
+	return ms, err
 }

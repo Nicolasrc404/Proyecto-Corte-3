@@ -5,6 +5,7 @@ type AuditRequestDto struct {
 	Entity    string `json:"entity"`
 	EntityID  uint   `json:"entity_id"`
 	UserEmail string `json:"user_email"`
+	Details   string `json:"details"`
 }
 
 type AuditEditRequestDto struct {
@@ -12,6 +13,7 @@ type AuditEditRequestDto struct {
 	Entity    *string `json:"entity,omitempty"`
 	EntityID  *uint   `json:"entity_id,omitempty"`
 	UserEmail *string `json:"user_email,omitempty"`
+	Details   *string `json:"details,omitempty"`
 }
 
 type AuditResponseDto struct {
@@ -20,5 +22,6 @@ type AuditResponseDto struct {
 	Entity    string `json:"entity"`
 	EntityID  uint   `json:"entity_id"`
 	UserEmail string `json:"user_email"`
+	Details   string `json:"details"`
 	CreatedAt string `json:"created_at"`
 }

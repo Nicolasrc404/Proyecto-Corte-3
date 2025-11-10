@@ -14,15 +14,37 @@ import (
 )
 
 type MaterialHandler struct {
-	Repo      *repository.MaterialRepository
-	HandleErr func(http.ResponseWriter, int, string, error)
-	Log       func(int, string, time.Time)
+	Repo             *repository.MaterialRepository
+	Dispatcher       AsyncDispatcher
+	CurrentUser      func(*http.Request) string
+	ReportAsyncError func(string, error)
+	HandleErr        func(http.ResponseWriter, int, string, error)
+	Log              func(int, string, time.Time)
 }
 
-func NewMaterialHandler(repo *repository.MaterialRepository,
+func NewMaterialHandler(
+	repo *repository.MaterialRepository,
+	dispatcher AsyncDispatcher,
+	currentUser func(*http.Request) string,
+	reportAsyncError func(string, error),
 	handleErr func(http.ResponseWriter, int, string, error),
-	log func(int, string, time.Time)) *MaterialHandler {
-	return &MaterialHandler{Repo: repo, HandleErr: handleErr, Log: log}
+	log func(int, string, time.Time),
+) *MaterialHandler {
+	return &MaterialHandler{
+		Repo:             repo,
+		Dispatcher:       dispatcher,
+		CurrentUser:      currentUser,
+		ReportAsyncError: reportAsyncError,
+		HandleErr:        handleErr,
+		Log:              log,
+	}
+}
+
+func (h *MaterialHandler) userEmail(r *http.Request) string {
+	if h.CurrentUser != nil {
+		return h.CurrentUser(r)
+	}
+	return ""
 }
 
 func (h *MaterialHandler) GetAll(w http.ResponseWriter, r *http.Request) {
@@ -32,7 +54,6 @@ func (h *MaterialHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
 		return
 	}
-
 	resp := make([]*api.MaterialResponseDto, 0, len(materials))
 	for _, m := range materials {
 		resp = append(resp, &api.MaterialResponseDto{
@@ -55,7 +76,6 @@ func (h *MaterialHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		h.HandleErr(w, http.StatusBadRequest, r.URL.Path, err)
 		return
 	}
-
 	m, err := h.Repo.FindById(id)
 	if err != nil {
 		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
@@ -65,7 +85,6 @@ func (h *MaterialHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		h.HandleErr(w, http.StatusNotFound, r.URL.Path, errors.New("material not found"))
 		return
 	}
-
 	resp := &api.MaterialResponseDto{
 		ID:        int(m.ID),
 		Name:      m.Name,
@@ -89,14 +108,21 @@ func (h *MaterialHandler) Create(w http.ResponseWriter, r *http.Request) {
 		h.HandleErr(w, http.StatusBadRequest, r.URL.Path, errors.New("name required"))
 		return
 	}
-
-	m := &models.Material{Name: req.Name, Category: req.Category, Quantity: req.Quantity}
+	m := &models.Material{
+		Name:     req.Name,
+		Category: req.Category,
+		Quantity: req.Quantity,
+	}
 	m, err := h.Repo.Save(m)
 	if err != nil {
 		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
 		return
 	}
-
+	if h.Dispatcher != nil {
+		if err := h.Dispatcher.EnqueueAudit("create", "material", m.ID, h.userEmail(r), "Registro de material"); err != nil {
+			h.ReportAsyncError(r.URL.Path, err)
+		}
+	}
 	resp := &api.MaterialResponseDto{
 		ID:        int(m.ID),
 		Name:      m.Name,
@@ -130,6 +156,11 @@ func (h *MaterialHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	if err := h.Repo.Delete(m); err != nil {
 		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
 		return
+	}
+	if h.Dispatcher != nil {
+		if err := h.Dispatcher.EnqueueAudit("delete", "material", m.ID, h.userEmail(r), "Eliminación de material"); err != nil {
+			h.ReportAsyncError(r.URL.Path, err)
+		}
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -173,6 +204,11 @@ func (h *MaterialHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
 		return
 	}
+	if h.Dispatcher != nil {
+		if err := h.Dispatcher.EnqueueAudit("update", "material", m.ID, h.userEmail(r), "Actualización de material"); err != nil {
+			h.ReportAsyncError(r.URL.Path, err)
+		}
+	}
 
 	resp := &api.MaterialResponseDto{
 		ID:        int(m.ID),
@@ -181,9 +217,8 @@ func (h *MaterialHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		Quantity:  m.Quantity,
 		CreatedAt: m.CreatedAt.Format(time.RFC3339),
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]any{"data": resp})
+	json.NewEncoder(w).Encode(map[string]interface{}{"data": resp})
 	h.Log(http.StatusAccepted, r.URL.Path, start)
 }

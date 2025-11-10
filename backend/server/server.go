@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gorilla/handlers"
 	"gorm.io/driver/postgres"
@@ -35,8 +36,7 @@ type Server struct {
 // NewServer inicializa la instancia del servidor.
 func NewServer() *Server {
 	s := &Server{
-		logger:    logger.NewLogger(),
-		taskQueue: NewTaskQueue(),
+		logger: logger.NewLogger(),
 	}
 	var cfg config.Config
 	configFile, err := os.ReadFile("config/config.json")
@@ -62,6 +62,9 @@ func NewServer() *Server {
 func (s *Server) StartServer() {
 	fmt.Println("Inicializando base de datos...")
 	s.initDB()
+	if err := s.initAsyncInfrastructure(); err != nil {
+		s.logger.Fatal(err)
+	}
 
 	fmt.Println("Configurando CORS...")
 	corsObj := handlers.CORS(
@@ -126,6 +129,30 @@ func (s *Server) initDB() {
 	s.MaterialRepository = repository.NewMaterialRepository(s.DB)
 	s.TransmutationRepository = repository.NewTransmutationRepository(s.DB)
 	s.AuditRepository = repository.NewAuditRepository(s.DB)
+}
+func (s *Server) initAsyncInfrastructure() error {
+	redisAddr := s.Config.RedisAddress
+	if redisAddr == "" {
+		redisAddr = "localhost:6379"
+	}
+	s.taskQueue = NewTaskQueue(redisAddr, s.logger)
+	s.taskQueue.WithRepositories(
+		s.TransmutationRepository,
+		s.AuditRepository,
+		s.MissionRepository,
+		s.MaterialRepository,
+	)
+
+	verificationInterval := time.Duration(s.Config.VerificationIntervalMinutes) * time.Minute
+	pendingHours := time.Duration(s.Config.PendingTransmutationHours) * time.Hour
+	lowStock := s.Config.MaterialLowStockThreshold
+
+	s.taskQueue.ConfigureThresholds(verificationInterval, pendingHours, lowStock)
+	if err := s.taskQueue.Start(); err != nil {
+		return err
+	}
+	s.taskQueue.ScheduleDailyVerification()
+	return nil
 }
 
 // GetJWTSecret devuelve la clave secreta usada para firmar los tokens JWT.

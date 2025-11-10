@@ -14,17 +14,37 @@ import (
 )
 
 type MissionHandler struct {
-	Repo      *repository.MissionRepository
-	HandleErr func(http.ResponseWriter, int, string, error)
-	Log       func(int, string, time.Time)
+	Repo             *repository.MissionRepository
+	Dispatcher       AsyncDispatcher
+	CurrentUser      func(*http.Request) string
+	ReportAsyncError func(string, error)
+	HandleErr        func(http.ResponseWriter, int, string, error)
+	Log              func(int, string, time.Time)
 }
 
 func NewMissionHandler(
 	repo *repository.MissionRepository,
+	dispatcher AsyncDispatcher,
+	currentUser func(*http.Request) string,
+	reportAsyncError func(string, error),
 	handleErr func(http.ResponseWriter, int, string, error),
 	log func(int, string, time.Time),
 ) *MissionHandler {
-	return &MissionHandler{Repo: repo, HandleErr: handleErr, Log: log}
+	return &MissionHandler{
+		Repo:             repo,
+		Dispatcher:       dispatcher,
+		CurrentUser:      currentUser,
+		ReportAsyncError: reportAsyncError,
+		HandleErr:        handleErr,
+		Log:              log,
+	}
+}
+
+func (h *MissionHandler) userEmail(r *http.Request) string {
+	if h.CurrentUser != nil {
+		return h.CurrentUser(r)
+	}
+	return ""
 }
 
 func (h *MissionHandler) GetAll(w http.ResponseWriter, r *http.Request) {
@@ -38,9 +58,13 @@ func (h *MissionHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 	resp := make([]*api.MissionResponseDto, 0, len(ms))
 	for _, m := range ms {
 		resp = append(resp, &api.MissionResponseDto{
-			ID: int(m.ID), Title: m.Title, Description: m.Description,
-			Difficulty: m.Difficulty, Status: m.Status, AssignedTo: m.AssignedTo,
-			CreatedAt: m.CreatedAt.Format(time.RFC3339),
+			ID:          int(m.ID),
+			Title:       m.Title,
+			Description: m.Description,
+			Difficulty:  m.Difficulty,
+			Status:      m.Status,
+			AssignedTo:  m.AssignedTo,
+			CreatedAt:   m.CreatedAt.Format(time.RFC3339),
 		})
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -67,9 +91,13 @@ func (h *MissionHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := &api.MissionResponseDto{
-		ID: int(m.ID), Title: m.Title, Description: m.Description,
-		Difficulty: m.Difficulty, Status: m.Status, AssignedTo: m.AssignedTo,
-		CreatedAt: m.CreatedAt.Format(time.RFC3339),
+		ID:          int(m.ID),
+		Title:       m.Title,
+		Description: m.Description,
+		Difficulty:  m.Difficulty,
+		Status:      m.Status,
+		AssignedTo:  m.AssignedTo,
+		CreatedAt:   m.CreatedAt.Format(time.RFC3339),
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{"data": resp})
@@ -90,20 +118,31 @@ func (h *MissionHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	m := &models.Mission{
-		Title: req.Title, Description: req.Description,
-		Difficulty: req.Difficulty, Status: "pendiente",
-		AssignedTo: req.AssignedTo,
+		Title:       req.Title,
+		Description: req.Description,
+		Difficulty:  req.Difficulty,
+		Status:      "pendiente",
+		AssignedTo:  req.AssignedTo,
 	}
 	m, err := h.Repo.Save(m)
 	if err != nil {
 		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
 		return
 	}
+	if h.Dispatcher != nil {
+		if err := h.Dispatcher.EnqueueAudit("create", "mission", m.ID, h.userEmail(r), "Creación de misión"); err != nil {
+			h.ReportAsyncError(r.URL.Path, err)
+		}
+	}
 
 	resp := &api.MissionResponseDto{
-		ID: int(m.ID), Title: m.Title, Description: m.Description,
-		Difficulty: m.Difficulty, Status: m.Status, AssignedTo: m.AssignedTo,
-		CreatedAt: m.CreatedAt.Format(time.RFC3339),
+		ID:          int(m.ID),
+		Title:       m.Title,
+		Description: m.Description,
+		Difficulty:  m.Difficulty,
+		Status:      m.Status,
+		AssignedTo:  m.AssignedTo,
+		CreatedAt:   m.CreatedAt.Format(time.RFC3339),
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -131,6 +170,11 @@ func (h *MissionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	if err := h.Repo.Delete(m); err != nil {
 		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
 		return
+	}
+	if h.Dispatcher != nil {
+		if err := h.Dispatcher.EnqueueAudit("delete", "mission", m.ID, h.userEmail(r), "Eliminación de misión"); err != nil {
+			h.ReportAsyncError(r.URL.Path, err)
+		}
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -179,6 +223,11 @@ func (h *MissionHandler) Edit(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.HandleErr(w, http.StatusInternalServerError, r.URL.Path, err)
 		return
+	}
+	if h.Dispatcher != nil {
+		if err := h.Dispatcher.EnqueueAudit("update", "mission", m.ID, h.userEmail(r), "Actualización de misión"); err != nil {
+			h.ReportAsyncError(r.URL.Path, err)
+		}
 	}
 
 	resp := &api.MissionResponseDto{

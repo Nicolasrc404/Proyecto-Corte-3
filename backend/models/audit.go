@@ -8,4 +8,5 @@ type Audit struct {
 	Entity    string
 	EntityID  uint
 	UserEmail string
+	Details   string
 }

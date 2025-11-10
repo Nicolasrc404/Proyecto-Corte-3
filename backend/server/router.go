@@ -11,6 +11,10 @@ func (s *Server) router() http.Handler {
 	router := mux.NewRouter()
 	router.Use(s.logger.RequestLogger)
 
+	dispatcher := s.taskQueue
+	asyncReporter := s.asyncErrorReporter()
+	currentUser := currentUserExtractor
+
 	// ========== AUTH ==========
 	authHandler := handlers.NewAuthHandler(
 		s.GetJWTSecret(),
@@ -26,6 +30,9 @@ func (s *Server) router() http.Handler {
 	if s.AlchemistRepository != nil {
 		alchHandler := handlers.NewAlchemistHandler(
 			s.AlchemistRepository,
+			dispatcher,
+			currentUser,
+			asyncReporter,
 			s.HandleError,
 			s.logger.Info,
 		)
@@ -49,7 +56,14 @@ func (s *Server) router() http.Handler {
 
 		// ======== MISSIONS ========
 		if s.MissionRepository != nil {
-			mh := handlers.NewMissionHandler(s.MissionRepository, s.HandleError, s.logger.Info)
+			mh := handlers.NewMissionHandler(
+				s.MissionRepository,
+				dispatcher,
+				currentUser,
+				asyncReporter,
+				s.HandleError,
+				s.logger.Info,
+			)
 			router.HandleFunc("/missions", mh.GetAll).Methods(http.MethodGet)
 			router.HandleFunc("/missions/{id}", mh.GetByID).Methods(http.MethodGet)
 			router.Handle("/missions",
@@ -67,6 +81,9 @@ func (s *Server) router() http.Handler {
 		if s.TransmutationRepository != nil {
 			transHandler := handlers.NewTransmutationHandler(
 				s.TransmutationRepository,
+				dispatcher,
+				currentUser,
+				asyncReporter,
 				s.HandleError,
 				s.logger.Info,
 			)
@@ -92,7 +109,14 @@ func (s *Server) router() http.Handler {
 
 		// ======== MATERIALS ========
 		if s.MaterialRepository != nil {
-			matHandler := handlers.NewMaterialHandler(s.MaterialRepository, s.HandleError, s.logger.Info)
+			matHandler := handlers.NewMaterialHandler(
+				s.MaterialRepository,
+				dispatcher,
+				currentUser,
+				asyncReporter,
+				s.HandleError,
+				s.logger.Info,
+			)
 			router.HandleFunc("/materials", matHandler.GetAll).Methods(http.MethodGet)
 			router.HandleFunc("/materials/{id}", matHandler.GetByID).Methods(http.MethodGet)
 			router.Handle("/materials",

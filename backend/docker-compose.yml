@@ -34,6 +34,14 @@ services:
       - 5433:5432
     volumes:
       - pg-data:/var/lib/postgresql
+      
+  redis:
+    image: redis:7-alpine
+    container_name: backend-redis
+    ports:
+      - 6379:6379
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+
 
 volumes:
   pg-data:
